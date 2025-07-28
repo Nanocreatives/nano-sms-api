@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SendMessageDto } from './sendMessage.dto';
+import * as https from 'https';
 
 @Injectable()
 export class MessageService {
@@ -11,32 +12,53 @@ export class MessageService {
     statut: string;
     id: string;
   }> {
-    const url = 'https://sms.mtncongo.net/api/sms/';
-    const myHeaders = new Headers();
-    myHeaders.append('Content-Type', 'application/json');
-    // myHeaders.append('Accept', 'application/json');
-    myHeaders.append('Authorization', `${token}`);
-    const body = JSON.stringify({
-      ...request,
-    });
-    const requestOptions = {
+    const data = JSON.stringify({ ...request });
+
+    const options = {
+      hostname: 'sms.mtncongo.net',
+      port: 443,
+      path: '/api/sms/',
       method: 'POST',
-      headers: myHeaders,
-      body,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: token,
+      },
+      rejectUnauthorized: false,
     };
-    try {
-      const response = await fetch(url, requestOptions);
-      if (response.status === 201) {
-        return response.json() as unknown as {
-          resultat: string;
-          statut: string;
-          id: string;
-        };
-      }
-      throw new BadRequestException(response.json());
-    } catch (error) {
-      console.error('***', error);
-      throw error;
-    }
+
+    return new Promise((resolve, reject) => {
+      const req = https.request(options, (res) => {
+        let responseBody = '';
+
+        res.on('data', (chunk) => {
+          responseBody += chunk;
+        });
+
+        res.on('end', () => {
+          if (res.statusCode === 201) {
+            try {
+              const parsedData = JSON.parse(responseBody);
+              resolve(parsedData);
+            } catch (e) {
+              reject(new BadRequestException('Erreur de parsing JSON'));
+            }
+          } else {
+            reject(
+              new BadRequestException(
+                `Échec requête: ${res.statusCode} - ${responseBody}`,
+              ),
+            );
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        console.error('Requête HTTPS échouée', error);
+        reject(error);
+      });
+
+      req.write(data);
+      req.end();
+    });
   }
 }

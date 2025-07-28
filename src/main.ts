@@ -19,6 +19,12 @@ async function bootstrap() {
       },
     }),
   );
-  await app.listen(process.env.PORT);
+  await app
+    .listen(process.env.PORT || 3000)
+    .then(() =>
+      console.log(
+        `\n App listen to http://localhost:${process.env.PORT || '3000'} `,
+      ),
+    );
 }
 bootstrap();
